@@ -3,6 +3,7 @@ from django.utils import simplejson
 
 class Xpenser:
     BASE_URL    = 'https://www.xpenser.com/api/v1.0/'
+    RECEIPT_BASE_URL = 'https://www.xpenser.com/static/xpenser/media/Receipts/'
 
     def __init__(self, username, passwd):
         password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
@@ -29,6 +30,24 @@ class Xpenser:
             raise
         return result
 
+    def _receipt(self, request):
+        print "Hello: _request", request
+
+        try:
+            req = urllib2.Request(self.RECEIPT_BASE_URL + request)
+            conn  = urllib2.urlopen(req)
+            print "Response ", conn.code, conn.msg
+            response = conn.read()
+        except Exception, e:
+            print "Unable to make request: [%s]: [%s]" % (str(e), e.read())
+            raise
+        return response
+
+    def save_receipt(self, request, filename):
+        response = self._receipt(request)
+        with open(filename, 'w') as rfile:
+            rfile.write(response)
+
     def get_expenses(self, params=""):
         ''' '''
         try:
@@ -37,6 +56,28 @@ class Xpenser:
             print "Unable to get expenses:", str(e)
             return False
         return result
+
+    def update_expense(self, expense_id, values):
+        '''
+        expense_id should be an int
+        values should be a dictionary suitable for urllib.urlencode()
+        '''
+        return self._request('expense/%i' % expense_id, urllib.urlencode(values))
+
+    def get_report(self, report_name, status='U'):
+        reports = self._request('reports/?status=%s'%status)
+        for report in reports:
+            if report['name'] == report_name:
+                return report
+
+        return None
+
+    def create_report(self, report_name, status=None):
+        report = self._request('report/', urllib.urlencode({'name':report_name}))
+        if status:
+            report = self._request('report/%i' % report['id'], urllib.urlencode({'status':status}))
+        return report
+
 
 if __name__ == "__main__":
     xp = Xpenser('username@something.com', 'password')
